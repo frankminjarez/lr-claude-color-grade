@@ -16,6 +16,7 @@
 --]]
 
 local LrApplication      = import 'LrApplication'
+local LrBinding          = import 'LrBinding'
 local LrDialogs          = import 'LrDialogs'
 local LrFunctionContext  = import 'LrFunctionContext'
 local LrHttp             = import 'LrHttp'
@@ -23,8 +24,10 @@ local LrPrefs            = import 'LrPrefs'
 local LrProgressScope    = import 'LrProgressScope'
 local LrTasks            = import 'LrTasks'
 local LrStringUtils      = import 'LrStringUtils'
+local LrView             = import 'LrView'
 
-local json = require 'json'
+local json          = require 'json'
+local CANNED_STYLES = require 'Styles'
 
 local pluginPrefs = LrPrefs.prefsForPlugin()
 
@@ -79,16 +82,23 @@ local function getJpegDimensions(data)
     return nil, nil
 end
 
-local MAX_IMAGE_DIM = 7999
+local MAX_IMAGE_DIM   = 7999
+local MAX_IMAGE_BYTES = 9 * 1024 * 1024
 
 -- ─────────────────────────────────────────────────────────
 -- Async thumbnail retrieval
+--
+-- When Lightroom marks a preview stale (e.g. after develop settings change),
+-- requestJpegThumbnail returns an error on every attempt regardless of how
+-- long you wait.  The only reliable reset is for the user to click away to
+-- another photo and back — this resets Lightroom's internal preview state.
+--
+-- catalog:setSelectedPhotos() cannot be called from inside an async task
+-- while a progress scope is active (Lightroom asserts).  So after exhausting
+-- retries we surface a clear instruction instead.
 -- ─────────────────────────────────────────────────────────
 local function getPhotoThumbnail(photo, size)
-    -- Lightroom invalidates the preview cache after develop settings change,
-    -- so retry a few times with short pauses before giving up.
-    local MAX_ATTEMPTS = 5
-    local RETRY_WAIT   = 3   -- seconds between attempts
+    local MAX_ATTEMPTS = 3
 
     for attempt = 1, MAX_ATTEMPTS do
         local jpegData, thumbError, done = nil, nil, false
@@ -108,6 +118,12 @@ local function getPhotoThumbnail(photo, size)
         end
 
         if jpegData then
+            if #jpegData > MAX_IMAGE_BYTES then
+                return nil, string.format(
+                    'Preview is too large to send (%.1f MB \226\128\148 limit is 9 MB). ' ..
+                    'Go to Library \226\150\184 Previews \226\150\184 Build Standard-Sized Previews and retry.',
+                    #jpegData / (1024 * 1024))
+            end
             local w, h = getJpegDimensions(jpegData)
             if w and h and (w > MAX_IMAGE_DIM or h > MAX_IMAGE_DIM) then
                 return nil, string.format(
@@ -118,16 +134,13 @@ local function getPhotoThumbnail(photo, size)
             return jpegData, nil
         end
 
-        -- Preview not ready yet — wait and retry (unless last attempt)
-        if attempt < MAX_ATTEMPTS then
-            local waitUntil = os.time() + RETRY_WAIT
-            while os.time() < waitUntil do LrTasks.yield() end
-        end
+        -- Brief yield between attempts before giving up
+        LrTasks.yield()
     end
 
-    return nil, 'Preview not available after several attempts. ' ..
-        'Lightroom may still be regenerating it after the last develop change. ' ..
-        'Wait a moment and try again, or go to Library \226\150\184 Previews \226\150\184 Build Standard-Sized Previews.'
+    return nil, 'Preview appears stale. Click a different photo and then ' ..
+        're-select this one to reset the preview, then run Grade again. ' ..
+        'Or go to Library \226\150\184 Previews \226\150\184 Build Standard-Sized Previews.'
 end
 
 -- ─────────────────────────────────────────────────────────
@@ -586,6 +599,104 @@ local function buildSummary(old, new, result, isAdaptive)
 end
 
 -- ─────────────────────────────────────────────────────────
+-- Run dialog — asks for the style target for THIS run
+--
+-- The style target is a creative decision that changes shot to shot, so it
+-- belongs here rather than in Settings.  The last style used is remembered and
+-- pre-filled, so repeating a grade is still one keystroke.
+--
+-- Must be called before the LrProgressScope is created: Lightroom will not
+-- present a modal dialog while a progress scope is active.
+-- ─────────────────────────────────────────────────────────
+local function promptForRun(photoCount, model, isAdaptive)
+    local chosen
+
+    LrFunctionContext.callWithContext('claudeColorGradeRun', function(context)
+        local f     = LrView.osFactory()
+        local props = LrBinding.makePropertyTable(context)
+
+        props.styleTarget = pluginPrefs.lastStyleTarget
+                         or pluginPrefs.styleTarget
+                         or 'Natural / Balanced'
+        props.saveAsDefault = false
+
+        local scopeDesc = isAdaptive
+            and 'HSL Color Mixer + Color Grading only (Adaptive Color mode)'
+            or  'White Balance, Tone, Presence, Tone Curve, HSL, Color Grading'
+
+        local contents = f:column {
+            bind_to_object = props,
+            spacing        = f:dialog_spacing(),
+
+            f:static_text {
+                title = string.format('Grading %d photo%s with %s.',
+                    photoCount, photoCount == 1 and '' or 's', model),
+                font  = '<system/bold>',
+            },
+
+            f:group_box {
+                title           = 'Style target for this run',
+                fill_horizontal = 1,
+                f:column {
+                    spacing         = f:label_spacing(),
+                    fill_horizontal = 1,
+
+                    f:combo_box {
+                        value           = LrView.bind 'styleTarget',
+                        items           = CANNED_STYLES,
+                        fill_horizontal = 1,
+                        width_in_chars  = 52,
+                        immediate       = true,
+                        tooltip         = 'Pick a canned style or type your own description',
+                    },
+                    f:static_text {
+                        title = 'Choose a preset or type any description, e.g.\n' ..
+                                '"moody blue hour with lifted shadows and teal split toning"',
+                        font  = '<system/small>',
+                    },
+                    f:spacer { height = 2 },
+                    f:checkbox {
+                        title = 'Remember this as my default',
+                        value = LrView.bind 'saveAsDefault',
+                    },
+                },
+            },
+
+            f:static_text {
+                title = 'Adjusts: ' .. scopeDesc,
+                font  = '<system/small>',
+            },
+            f:static_text {
+                title = 'Use Develop \226\150\184 History to undo.',
+                font  = '<system/small>',
+            },
+        }
+
+        local result = LrDialogs.presentModalDialog({
+            title      = 'Claude AI Color Grade',
+            contents   = contents,
+            actionVerb = 'Apply Grade',
+            cancelVerb = 'Cancel',
+        })
+
+        if result == 'ok' then
+            -- combo_box hands back whatever the user typed, so trim it and
+            -- fall back rather than sending an empty brief to the API.
+            local style = tostring(props.styleTarget or ''):match('^%s*(.-)%s*$')
+            if style == '' then style = 'Natural / Balanced' end
+            chosen = style
+
+            pluginPrefs.lastStyleTarget = style
+            if props.saveAsDefault == true then
+                pluginPrefs.styleTarget = style
+            end
+        end
+    end)
+
+    return chosen
+end
+
+-- ─────────────────────────────────────────────────────────
 -- Entry point
 -- ─────────────────────────────────────────────────────────
 LrTasks.startAsyncTask(function()
@@ -610,25 +721,12 @@ LrTasks.startAsyncTask(function()
 
     local model        = pluginPrefs.claudeModel    or 'claude-opus-4-5'
     local thumbSize    = tonumber(pluginPrefs.thumbnailSize) or 1024
-    local styleTarget  = pluginPrefs.styleTarget    or 'Natural / Balanced'
     local isAdaptive   = pluginPrefs.adaptiveMode == true
     local photoCount   = #photos
 
-    -- Confirmation
-    local scopeDesc = isAdaptive
-        and 'HSL Color Mixer + Color Grading only (Adaptive Color mode)'
-        or  'White Balance, Tone, Presence, Tone Curve, HSL, Color Grading'
-    local confirmMsg = string.format(
-        'Apply colour grade to %d photo%s?\n\n' ..
-        '\226\128\162 Style target: %s\n' ..
-        '\226\128\162 Model: %s\n' ..
-        '\226\128\162 Adjusts: %s\n\n' ..
-        'Use Develop \226\150\184 History to undo.',
-        photoCount, photoCount == 1 and '' or 's', styleTarget, model, scopeDesc)
-
-    if LrDialogs.confirm('Claude AI Color Grade', confirmMsg, 'Apply Grade', 'Cancel') ~= 'ok' then
-        return
-    end
+    -- Ask for this run's style target (doubles as the confirmation step)
+    local styleTarget = promptForRun(photoCount, model, isAdaptive)
+    if not styleTarget then return end     -- cancelled
 
     LrFunctionContext.callWithContext('claudeColorGradeProgress', function(context)
 

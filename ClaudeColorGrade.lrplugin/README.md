@@ -56,13 +56,13 @@ For each selected photo the plugin:
 | `claude-sonnet-4-5` | Faster, lower cost per image |
 | `claude-haiku-4-5` | Fastest, cheapest — good for bulk preview runs |
 
-4. Choose a **Default Style Target** from the dropdown, or type any custom description.
+4. Set the **Preview size** (see [Settings reference](#settings-reference) below).
 
-5. Set the **Preview size** (see [Settings reference](#settings-reference) below).
+5. If you are using Lightroom's **Adaptive Color** camera profile, enable **Adaptive Color Mode** (see [Adaptive Color mode](#adaptive-color-mode) below).
 
-6. If you are using Lightroom's **Adaptive Color** camera profile, enable **Adaptive Color Mode** (see [Adaptive Color mode](#adaptive-color-mode) below).
+6. Click **Save**.
 
-7. Click **Save**.
+The style target is not set here — you choose it each time you run a grade, since it is a per-shoot creative decision.
 
 ---
 
@@ -72,11 +72,13 @@ For each selected photo the plugin:
 
 2. Go to **File → Plug-in Extras → Color Grade with Claude AI**.
 
-3. Review the confirmation dialog — it shows the active style target, model, and which panels will be adjusted — then click **Apply Grade**.
+3. **Choose the style target for this run.** The dialog opens with a dropdown of the 12 canned styles, and you can type any free-form description over it. It also shows the photo count, the model, and which panels will be adjusted. Tick **Remember this as my default** if you want this style pre-filled on a fresh install; otherwise the plugin simply pre-fills whatever you used last, so repeating a grade is one keystroke.
 
-4. A progress bar appears while each photo is processed.
+4. Click **Apply Grade**.
 
-5. When complete, a summary dialog shows the before → after values for every changed parameter and Claude's reasoning. Use **Develop → History** to undo if you prefer the original.
+5. A progress bar appears while each photo is processed.
+
+6. When complete, a summary dialog shows the before → after values for every changed parameter and Claude's reasoning. Use **Develop → History** to undo if you prefer the original.
 
 ---
 
@@ -125,7 +127,7 @@ The plugin ships with 12 canned presets selectable from the dropdown:
 | Soft & Dreamy | Hazy highlights, pastel palette, low contrast |
 | Desaturated Editorial | Near-monochrome with selective hue pops |
 
-You can also **type any custom description** in the Style field, for example:
+The dropdown appears in the run dialog each time you grade, so you can change the look shot to shot without visiting Settings. You can also **type any custom description** over it, for example:
 
 - `moody blue hour with lifted shadows and teal split toning`
 - `sun-bleached desert heat with faded greens`
@@ -151,10 +153,6 @@ Controls the Claude model used for analysis.
 
 - `claude-opus-4-5` gives the most nuanced colour reasoning and is recommended when quality is the priority.
 - `claude-haiku-4-5` is significantly cheaper and faster, useful for bulk preview runs where a rough grade is enough.
-
-### Default Style Target
-
-Sets the style target pre-filled when the plugin runs. You can type any free-form description here or choose from the dropdown. The plugin uses whatever text is in this field as the creative brief sent to Claude.
 
 ### Preview size
 
@@ -233,6 +231,9 @@ Monitor your usage at [console.anthropic.com/usage](https://console.anthropic.co
 
 **Adaptive Color mode enabled but Basic/WB still changing**
 → Make sure you saved the Settings dialog after checking the box and that you are running v1.5 or later of the plugin.
+
+**I want a style target to stick between sessions**
+→ Tick **Remember this as my default** in the run dialog. Without it the plugin still pre-fills the style you used last, which persists across restarts.
 
 **Settings are not saved after clicking Save**
 → Make sure the API key field is not empty and the Preview size is a number between 256 and 4096.

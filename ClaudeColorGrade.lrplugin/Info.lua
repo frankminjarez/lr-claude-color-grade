@@ -8,9 +8,9 @@ return {
     LrSdkVersion        = 6.0,
     LrSdkMinimumVersion = 6.0,
 
-    LrToolkitIdentifier = 'com.frankminjarez.claudecolorgrade',
+    LrToolkitIdentifier = 'net.advertize.claudecolorgrade',
     LrPluginName        = LOC '$$$/ClaudeColorGrade/PluginName=Claude AI Color Grade',
-    LrPluginInfoUrl     = 'https://frankminjarez.com',
+    LrPluginInfoUrl     = 'https://advertize.net',
 
     LrExportMenuItems = {
         {
@@ -24,5 +24,5 @@ return {
         },
     },
 
-    VERSION = { major = 1, minor = 0, revision = 0, build = 1 },
+    VERSION = { major = 1, minor = 1, revision = 0, build = 1 },
 }

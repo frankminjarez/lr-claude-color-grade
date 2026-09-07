@@ -20,20 +20,9 @@ local MODELS = {
 
 local THUMB_SIZES = { '512', '768', '1024', '1536', '2048' }
 
-local CANNED_STYLES = {
-    'Natural / Balanced',
-    'Warm Film',
-    'Cool & Moody',
-    'Cinematic (Teal & Orange)',
-    'Bright & Airy',
-    'Dark & Dramatic',
-    'Golden Hour',
-    'Vintage Film',
-    'Faded Matte',
-    'High Contrast',
-    'Soft & Dreamy',
-    'Desaturated Editorial',
-}
+-- The style target is chosen per run in the Color Grade dialog, not here:
+-- it is a creative decision that changes shot to shot.  Styles.lua holds the
+-- canned list for that dialog.
 
 LrTasks.startAsyncTask(function()
     LrFunctionContext.callWithContext('claudeColorGradeSettings', function(context)
@@ -44,7 +33,6 @@ LrTasks.startAsyncTask(function()
         props.apiKey        = pluginPrefs.claudeApiKey   or ''
         props.model         = pluginPrefs.claudeModel    or 'claude-opus-4-5'
         props.thumbnailSize = tostring(pluginPrefs.thumbnailSize or 1024)
-        props.styleTarget   = pluginPrefs.styleTarget    or 'Natural / Balanced'
         props.adaptiveMode  = pluginPrefs.adaptiveMode   or false
 
         local contents = f:column {
@@ -101,39 +89,6 @@ LrTasks.startAsyncTask(function()
                         f:static_text { title = '', width = LrView.share 'lbl' },
                         f:static_text {
                             title = 'Opus = best quality  |  Sonnet = faster & cheaper  |  Haiku = fastest',
-                            font  = '<system/small>',
-                        },
-                    },
-                },
-            },
-
-            -- Style Target
-            f:group_box {
-                title           = 'Default Style Target',
-                fill_horizontal = 1,
-                f:column {
-                    spacing         = f:label_spacing(),
-                    fill_horizontal = 1,
-
-                    f:row {
-                        spacing = f:label_spacing(),
-                        f:static_text {
-                            title     = 'Style:',
-                            width     = LrView.share 'lbl',
-                            alignment = 'right',
-                        },
-                        f:combo_box {
-                            value          = LrView.bind 'styleTarget',
-                            items          = CANNED_STYLES,
-                            fill_horizontal = 1,
-                            width_in_chars = 40,
-                            tooltip        = 'Choose a canned style or type your own description',
-                        },
-                    },
-                    f:row {
-                        f:static_text { title = '', width = LrView.share 'lbl' },
-                        f:static_text {
-                            title = 'You can also type a custom description, e.g. "moody blue hour with lifted shadows"',
                             font  = '<system/small>',
                         },
                     },
@@ -227,13 +182,9 @@ LrTasks.startAsyncTask(function()
                 return
             end
 
-            local style = props.styleTarget:match('^%s*(.-)%s*$')
-            if style == '' then style = 'Natural / Balanced' end
-
             pluginPrefs.claudeApiKey   = key
             pluginPrefs.claudeModel    = props.model
             pluginPrefs.thumbnailSize  = sz
-            pluginPrefs.styleTarget    = style
             pluginPrefs.adaptiveMode   = props.adaptiveMode == true
 
             LrDialogs.message('Claude AI Color Grade', 'Settings saved.', 'info')
