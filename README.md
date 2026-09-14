@@ -2,6 +2,8 @@
 
 Applies a complete, AI-driven colour grade to selected photos using Anthropic's Claude vision models. Choose from 12 canned cinematic styles or type any free-form description; Claude analyses each image and returns a cohesive set of Lightroom develop adjustments covering every major panel.
 
+[![Watch the video](https://img.youtube.com/vi/RTsmX7HH-kg/0.jpg)](https://www.youtube.com/watch?v=RTsmX7HH-kg)
+
 ---
 
 ## How it works
